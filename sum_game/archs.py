@@ -29,11 +29,11 @@ def get_game(sender=Sender(), receiver=Receiver()):
     def loss_fn(sender_input, _message, _receiver_input, receiver_output, labels, _aux_input):
         batch_size = sender_input.size(0)
         labels = labels
-        receiver_guesses = receiver_output.argmax(dim=1)
-        acc = (receiver_guesses == labels).float().mean()
+        receiver_guesses = receiver_output.argmax(dim=1).detach()
+        acc = (receiver_guesses == labels).float().mean().detach()
         loss = F.cross_entropy(receiver_output, labels, reduction="none")
         loss = loss.view(batch_size, -1).mean(dim=1)
-        return loss, {"acc": acc}
+        return loss, {"acc": acc.detach()}
 
     sender = core.RnnSenderGS(
         sender,
