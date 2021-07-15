@@ -25,15 +25,20 @@ class Receiver(nn.Module):
     def forward(self, x, _input, _aux_input):
         return self.output(x)
 
-def get_game(sender=Sender(), receiver=Receiver()):
+def get_game(
+    sender=Sender(),
+    receiver=Receiver(),
+    vocab_size=vocab_size,
+    embed_dim=embed_dim,
+    n_hidden=n_hidden,
+    cell=cell,
+    max_len=max_len,
+    temperature=temperature
+):
     def loss_fn(sender_input, _message, _receiver_input, receiver_output, labels, _aux_input):
-        batch_size = sender_input.size(0)
-        labels = labels
-        receiver_guesses = receiver_output.argmax(dim=1).detach()
-        acc = (receiver_guesses == labels).float().mean().detach()
-        loss = F.cross_entropy(receiver_output, labels, reduction="none")
-        loss = loss.view(batch_size, -1).mean(dim=1)
-        return loss, {"acc": acc.detach()}
+        acc = (receiver_output.argmax(dim=1) == labels).float().mean().detach()
+        loss = F.cross_entropy(receiver_output, labels, reduction="mean")
+        return loss, {"acc": acc}
 
     sender = core.RnnSenderGS(
         sender,
