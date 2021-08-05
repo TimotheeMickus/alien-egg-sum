@@ -64,7 +64,9 @@ def train_model(
         path = pathlib.Path(tensorboard_dir) / secrets.token_urlsafe(8)
         cbs += [core.callbacks.TensorboardLogger(writer=SummaryWriter(path))]
     if use_curriculum:
-        cbs += [LengthCurriculum(n_updates=n_updates, n_epochs=curriculum_length),]
+        cbs += [
+            LengthCurriculum(n_updates=n_updates, n_epochs=curriculum_length),
+        ]
     trainer = core.Trainer(
         game=game,
         device=device,
@@ -107,7 +109,9 @@ if __name__ == "__main__":
 
     if args.do_hypertune:
         if args.gp_result_dump.is_file():
-            print(f"will not override existing file {args.gp_result_dump}, stopping instead.")
+            print(
+                f"will not override existing file {args.gp_result_dump}, stopping instead."
+            )
             sys.exit(0)
         else:
             open(args.gp_result_dump, "w").close()

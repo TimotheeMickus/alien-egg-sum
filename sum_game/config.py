@@ -51,7 +51,9 @@ def get_args():
     # parser.add_argument("--temperature", default=1.0, type=float)
     parser.add_argument("--data_dir", default=pathlib.Path(".data"), type=pathlib.Path)
     parser.add_argument("--device", default=torch.device("cuda:0"), type=torch.device)
-    parser.add_argument("--save_dir", default=pathlib.Path("best_model"), type=pathlib.Path)
+    parser.add_argument(
+        "--save_dir", default=pathlib.Path("best_model"), type=pathlib.Path
+    )
     parser.add_argument("--runs_per_conf", default=3, type=int)
     parser.add_argument("--entropy_coeff", default=1e-1, type=float)
     parser.add_argument("--gp_result_dump", default="skopt_gp.pkl", type=pathlib.Path)

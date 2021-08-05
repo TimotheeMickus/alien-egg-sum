@@ -74,12 +74,20 @@ def get_categorization_game(
     return game, callbacks
 
 
-def regression_loss_fn(sender_input, _message, _receiver_input, receiver_output, labels, _aux_input):
+def regression_loss_fn(
+    sender_input, _message, _receiver_input, receiver_output, labels, _aux_input
+):
     receiver_output = receiver_output.view(-1)
     labels = labels.view(-1)
-    acc = (receiver_output.round().int() == labels).float().detach().view_as(receiver_output)
+    acc = (
+        (receiver_output.round().int() == labels)
+        .float()
+        .detach()
+        .view_as(receiver_output)
+    )
     loss = F.mse_loss(receiver_output, labels.float(), reduction="none")
     return loss, {"acc": acc, "bare_loss": loss.detach()}
+
 
 def get_regression_game(
     n_features, maxint, vocab_size, embed_dim, n_hidden, cell, max_len, entropy_coeff

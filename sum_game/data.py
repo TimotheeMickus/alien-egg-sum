@@ -82,7 +82,7 @@ class SumGameDataset(Dataset):
         ipt = self.get_bit_rep(a) + self.get_bit_rep(b)
         # retrieve the one hots and the target
         return torch.tensor(ipt, dtype=torch.float), s
-        
+
 
 def generate_datafiles(data_dir, N):
     """Simple function to generate data, based on the max value N of the operand and operator"""

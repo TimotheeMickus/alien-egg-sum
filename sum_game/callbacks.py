@@ -7,12 +7,18 @@ import egg.core as core
 
 import torch
 
+
 class EarlyStop(Exception):
     pass
 
+
 class EarlyStopperCallback(core.Callback):
     def __init__(
-        self, tracked_metric="acc", optimum="max", patience=10, save_dir=pathlib.Path("best_model")
+        self,
+        tracked_metric="acc",
+        optimum="max",
+        patience=10,
+        save_dir=pathlib.Path("best_model"),
     ):
         self.patience = patience
         self.metric = tracked_metric
@@ -20,7 +26,7 @@ class EarlyStopperCallback(core.Callback):
         self.best_val = None
         self.strikes = 0
         self.save_dir = save_dir
-        if self.comp == 'max':
+        if self.comp == "max":
             self.is_better = lambda val: self.best_val < val
         else:
             self.is_better = lambda val: self.best_val > new
@@ -37,12 +43,16 @@ class EarlyStopperCallback(core.Callback):
                 game = self.trainer.game.module
             else:
                 game = self.trainer.game
-            save_items = (0, game.state_dict(), self.trainer.optimizer.state_dict(), None)
+            save_items = (
+                0,
+                game.state_dict(),
+                self.trainer.optimizer.state_dict(),
+                None,
+            )
             torch.save(save_items, self.save_dir / "model.pt")
             with open(self.save_dir / "best_results.txt", "w") as ostr:
                 print(self.best_val, file=ostr)
-            print('\033[92m' + "Saved new best model" + '\033[0m')
-
+            print("\033[92m" + "Saved new best model" + "\033[0m")
 
     def on_validation_end(self, loss, logs, epoch):
         dump = dict(loss=loss)
@@ -54,27 +64,39 @@ class EarlyStopperCallback(core.Callback):
         else:
             new_val = dump[self.metric]
             if self.is_better(new_val):
-                print('\033[92m' + f"new val {new_val} is better than {self.best_val}" + '\033[0m')
+                print(
+                    "\033[92m"
+                    + f"new val {new_val} is better than {self.best_val}"
+                    + "\033[0m"
+                )
                 self.best_val = new_val
                 self.save_if_best()
                 self.strikes = 0
             else:
-                print('\033[91m' + f"new val {new_val} is no better than {self.best_val}" + '\033[0m')
+                print(
+                    "\033[91m"
+                    + f"new val {new_val} is no better than {self.best_val}"
+                    + "\033[0m"
+                )
                 self.strikes += 1
         if self.strikes >= self.patience:
-            print('\033[91m' + f"No improvement on {self.metric} after {self.patience} epochs, stopping early." + '\033[0m')
+            print(
+                "\033[91m"
+                + f"No improvement on {self.metric} after {self.patience} epochs, stopping early."
+                + "\033[0m"
+            )
             raise EarlyStop
+
 
 class LengthCurriculum(core.Callback):
     def __init__(self, n_epochs=100, n_updates=7):
         max_len = core.get_opts().max_len
         self.curriculum = {
-            (n_epochs * i) // n_updates : max((max_len * i) // n_updates, 1)
+            (n_epochs * i) // n_updates: max((max_len * i) // n_updates, 1)
             for i in range(n_updates + 1)
         }
         print("Curriculum:")
         pprint.pprint(self.curriculum)
-
 
     def on_train_begin(self, trainer):
         super().on_train_begin(trainer)
@@ -89,7 +111,11 @@ class LengthCurriculum(core.Callback):
         if epoch in self.curriculum:
             prev_max_len = core.get_opts().max_len
             new_max_len = self.curriculum[epoch]
-            print('\033[94m' + f"updating length: {prev_max_len} => {new_max_len}" + '\033[0m')
+            print(
+                "\033[94m"
+                + f"updating length: {prev_max_len} => {new_max_len}"
+                + "\033[0m"
+            )
             core.get_opts().max_len = new_max_len
             if self.trainer.distributed_context.is_distributed:
                 sender = self.trainer.game.module.sender
