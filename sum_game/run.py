@@ -41,6 +41,7 @@ def train_model(
     save_dir=pathlib.Path("best_model"),
     **ignore,
 ):
+
     early_stopper = EarlyStopperCallback(save_dir=save_dir)
 
     get_game = (
@@ -90,6 +91,8 @@ def train_model(
         trainer.train(n_epochs=n_epochs)
     except EarlyStop:
         pass
+    # right now I'm hacking this together, so 🙈
+    core.get_opts().max_len = max_len
     return trainer, early_stopper.best_val
 
 
