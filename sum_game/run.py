@@ -1,98 +1,155 @@
 # intended main entry point.
-import torch
-# torch.multiprocessing.set_sharing_strategy('file_system')
 import math
+import pathlib
+import pickle
+import secrets
+import sys
+
 import egg.core as core
 
-from config import *
-from data import *
-from archs import *
-
+import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-# torch.autograd.set_detect_anomaly(True)
+from torch.utils.tensorboard import SummaryWriter
 import skopt
 
-import pickle
+from callbacks import EarlyStopperCallback, EarlyStop, LengthCurriculum
+from config import get_args, get_search_space
+from data import SumGameDataset, to_dataloader, generate_datafiles
+from archs import get_regression_game, get_categorization_game
+
+# torch.autograd.set_detect_anomaly(True)
+
+
+def train_model(
+    train_loader,
+    dev_loader,
+    game_type="categorization",
+    batch_size=32,
+    n_hidden=10,
+    embed_dim=10,
+    max_len=10,
+    vocab_size=10,
+    cell="rnn",
+    entropy_coeff=1e-1,
+    tensorboard_dir=None,
+    device=torch.device("cuda:0"),
+    n_epochs=10,
+    use_curriculum=False,
+    curriculum_length=20,
+    n_updates=7,
+    save_dir=pathlib.Path("best_model"),
+    **ignore,
+):
+    early_stopper = EarlyStopperCallback(save_dir=save_dir)
+
+    get_game = (
+        get_categorization_game
+        if game_type == "categorization"
+        else get_regression_game
+    )
+    game, cbs = get_game(
+        n_features=train_loader.dataset.get_n_features(),
+        maxint=train_loader.dataset.maxint,
+        vocab_size=vocab_size,
+        embed_dim=embed_dim,
+        n_hidden=n_hidden,
+        cell=cell,
+        max_len=max_len,
+        entropy_coeff=entropy_coeff,
+    )
+    optimizer = core.build_optimizer(game.parameters())
+    if tensorboard_dir:
+        path = pathlib.Path(tensorboard_dir) / secrets.token_urlsafe(8)
+        cbs += [core.callbacks.TensorboardLogger(writer=SummaryWriter(path))]
+    if use_curriculum:
+        cbs += [LengthCurriculum(n_updates=n_updates, n_epochs=curriculum_length),]
+    trainer = core.Trainer(
+        game=game,
+        device=device,
+        optimizer=optimizer,
+        train_data=train_loader,
+        validation_data=dev_loader,
+        callbacks=cbs
+        + [
+            core.callbacks.ConsoleLogger(print_train_loss=True, as_json=True),
+            early_stopper
+            # core.ProgressBarLogger(
+            #     n_epochs=args.n_epochs,
+            #     train_data_len=math.ceil(len(train) / batch_size),
+            #     test_data_len=math.ceil(len(dev) / batch_size),
+            #     use_info_table=False,
+            # )
+            # core.PrintValidationEvents(n_epochs=n_epochs),
+        ],
+    )
+    print(f"Game: {game}")
+
+    print("training...")
+    try:
+        trainer.train(n_epochs=n_epochs)
+    except EarlyStop:
+        pass
+    return trainer, early_stopper.best_val
+
 
 if __name__ == "__main__":
-    if generate_data:
-        print(f"generating data in {data_dir}...")
-        generate_datafiles()
+    args = get_args()
+    if args.do_generate_data:
+        print(f"generating data in {args.data_dir}...")
+        generate_datafiles(args.data_dir, args.maxint)
         print("done.")
+    train = SumGameDataset(args.data_dir / "train.txt")
+    dev = SumGameDataset(args.data_dir / "dev.txt", maxint=train.maxint)
 
-    train, dev = SumGameDataset(data_dir / "train.txt"), SumGameDataset(data_dir / "dev.txt")
+    if args.do_hypertune:
+        if args.gp_result_dump.is_file():
+            print(f"will not override existing file {args.gp_result_dump}, stopping instead.")
+            sys.exit(0)
+        else:
+            open(args.gp_result_dump, "w").close()
+        search_space = get_search_space()
+        print(f"searching for optimal hyperparameters in search space: {search_space}")
 
-    search_space = [
-        skopt.space.Integer(1, 8, "uniform", name="embed_pow"), # window size
-        skopt.space.Integer(1, 8, "uniform", name="hidden_pow"), # number of negative items
-        skopt.space.Integer(4, 10, "uniform", name="batch_pow"), # number of negative items
-        skopt.space.Integer(1, 5, "uniform", name="max_len"), # negative sampling items selection
-        skopt.space.Integer(5, 500, "log-uniform", name="vocab_size"), # learning rate
-        skopt.space.Real(1e-6, 0.1, "log-uniform", name="lr"), # high-freq words temperature
-        skopt.space.Real(0.25, 1.75, "uniform", name="temperature"), # smallest value to learning rate
-        skopt.space.Categorical(["rnn", "gru", "lstm"], name="cell")
-    ]
+        @skopt.utils.use_named_args(search_space)
+        def gp_train(**hparams):
+            torch.cuda.empty_cache()
+            hparams["embed_dim"] = 2 ** hparams["embed_pow"]
+            hparams["n_hidden"] = 2 ** hparams["hidden_pow"]
+            hparams["batch_size"] = 2 ** hparams["batch_pow"]
+            print(f"hparams: {hparams}")
+            core.get_opts().__dict__.update(hparams)
+            print("building data loaders...")
+            train_loader = to_dataloader(train, batch_size=int(hparams["batch_size"]))
+            dev_loader = to_dataloader(dev, batch_size=int(hparams["batch_size"]))
+            print("done.")
 
-    @skopt.utils.use_named_args(search_space)
-    def train_model(**hparams):
-        torch.cuda.empty_cache()
-        hparams["embed_dim"] = 2 ** hparams["embed_pow"]
-        hparams["n_hidden"] = 2 ** hparams["hidden_pow"]
-        hparams["batch_size"] = 2 ** hparams["batch_pow"]
-        print(f"hparams: {hparams}")
-        core.get_opts().__dict__.update(hparams)
-        globals().update(hparams)
-        print("building data loaders...")
-        train_loader = to_dataloader(train, batch_size=int(batch_size))
-        dev_loader = to_dataloader(dev, batch_size=int(batch_size))
-        print("done.")
-
-        best_per_run = []
-        for run in range(runs_per_conf):
-            tracker = CustomTracker(print_train_loss=True, as_json=True, tracked_metric="acc", optimum="max")
-            print(f"run #{run}, building trainer...")
-            sender, receiver = Sender(n_hidden=n_hidden), Receiver(n_hidden=n_hidden)
-            game, callbacks = get_game(
-                sender=sender,
-                receiver=receiver,
-                n_hidden=n_hidden,
-                embed_dim=embed_dim,
-                max_len=max_len,
-                vocab_size=vocab_size,
-                cell=cell,
-                temperature=temperature,
+            best_per_run = []
+            for run in range(args.runs_per_conf):
+                all_kwargs = vars(args)
+                all_kwargs.update(hparams)
+                trainer, best_val = train_model(train_loader, dev_loader, **all_kwargs)
+                del trainer
+                torch.cuda.empty_cache()
+                print(f"best score for run: {best_val}.")
+                best_per_run.append(best_val)
+            print(
+                f"training of all {args.runs_per_conf} was completed. "
+                + f"Overall best loss: {max(best_per_run)}, "
+                + f"average best: {sum(best_per_run) / args.runs_per_conf}"
             )
-            optimizer = core.build_optimizer(game.parameters())
-            trainer = core.Trainer(
-                game=game,
-                device=device,
-                optimizer=optimizer,
-                train_data=train_loader,
-                validation_data=dev_loader,
-                callbacks=callbacks
-                + [
-                    tracker,
-                    core.ProgressBarLogger(
-                        n_epochs=n_epochs,
-                        train_data_len=math.ceil(len(train) / batch_size),
-                        test_data_len=math.ceil(len(dev) / batch_size),
-                        use_info_table=False
-                    )
-                    # core.PrintValidationEvents(n_epochs=n_epochs),
-                ],
-            )
-            print(f"done.\nGame: {game}")
 
-            print("training...")
-            trainer.train(n_epochs=n_epochs)
-            print(f"done, best score for run: {tracker.best_val}.")
-            best_per_run.append(tracker.best_val)
-        print(f"training of all {runs_per_conf} was completed. Overall best acc: {max(best_per_run)}, average best: {sum(best_per_run) / runs_per_conf}")
-        return -sum(best_per_run)/runs_per_conf # minus sign for gp minimize
+            # minus sign for gp minimize
+            return -sum(best_per_run) / args.runs_per_conf
 
-    print("searching for optimal hyperparameters")
-    hp_search_result = skopt.gp_minimize(train_model, search_space)
-    print(f"search for optimal hyperparameters is done. results: {hp_search_result}")
-    with open("skopt_gp.pkl", "wb") as ostr:
-        pickle.dump(hp_search_result, ostr)
+        hp_search_result = skopt.gp_minimize(gp_train, search_space)
+        print(
+            f"search for optimal hyperparameters is done. results: {hp_search_result}"
+        )
+        with open(args.gp_result_dump, "wb") as ostr:
+            pickle.dump(hp_search_result, ostr)
+    else:
+        print("default training behavior.")
+        train_loader = to_dataloader(train, batch_size=args.batch_size)
+        dev_loader = to_dataloader(dev, batch_size=args.batch_size)
+        trainer, _ = train_model(train_loader, dev_loader, **vars(args))
