@@ -42,38 +42,6 @@ def categorization_loss_fn(
     return loss, {"acc": acc, "bare_loss": loss.detach()}
 
 
-def get_categorization_game(
-    n_features, maxint, vocab_size, embed_dim, n_hidden, cell, max_len, entropy_coeff
-):
-    sender = Sender(n_hidden=n_hidden, n_features=n_features)
-    receiver = ReceiverCategorization(n_hidden=n_hidden, n_features=maxint + 1)
-
-    sender = core.RnnSenderReinforce(
-        sender,
-        vocab_size=vocab_size,
-        embed_dim=embed_dim,
-        hidden_size=n_hidden,
-        cell=cell,
-        max_len=max_len,
-    )
-    receiver = core.RnnReceiverDeterministic(
-        receiver,
-        vocab_size=vocab_size,
-        embed_dim=embed_dim,
-        hidden_size=n_hidden,
-        cell=cell,
-    )
-    game = core.SenderReceiverRnnReinforce(
-        sender,
-        receiver,
-        categorization_loss_fn,
-        sender_entropy_coeff=entropy_coeff,
-        receiver_entropy_coeff=0,
-    )
-    callbacks = []
-    return game, callbacks
-
-
 def regression_loss_fn(
     sender_input, _message, _receiver_input, receiver_output, labels, _aux_input
 ):
@@ -89,33 +57,59 @@ def regression_loss_fn(
     return loss, {"acc": acc, "bare_loss": loss.detach()}
 
 
-def get_regression_game(
-    n_features, maxint, vocab_size, embed_dim, n_hidden, cell, max_len, entropy_coeff
-):
+def get_game(game_type, n_features, maxint, vocab_size, embed_dim, n_hidden, cell, max_len, entropy_coeff, temperature, mechanism):
     sender = Sender(n_hidden=n_hidden, n_features=n_features)
-    receiver = ReceiverRegression(n_hidden=n_hidden, maxint=maxint, n_features=1)
-
-    sender = core.RnnSenderReinforce(
-        sender,
-        vocab_size=vocab_size,
-        embed_dim=embed_dim,
-        hidden_size=n_hidden,
-        cell=cell,
-        max_len=max_len,
-    )
-    receiver = core.RnnReceiverDeterministic(
-        receiver,
-        vocab_size=vocab_size,
-        embed_dim=embed_dim,
-        hidden_size=n_hidden,
-        cell=cell,
-    )
-    game = core.SenderReceiverRnnReinforce(
-        sender,
-        receiver,
-        regression_loss_fn,
-        sender_entropy_coeff=entropy_coeff,
-        receiver_entropy_coeff=0,
-    )
-    callbacks = []
+    if game_type=="regression":
+        receiver = ReceiverRegression(n_hidden=n_hidden, maxint=maxint, n_features=1)
+        loss_fn = regression_loss_fn
+    else:
+        receiver = ReceiverCategorization(n_hidden=n_hidden, n_features=maxint + 1)
+        loss_fn = categorization_loss_fn
+    if mechanism=="reinforce":
+        sender = core.RnnSenderReinforce(
+            sender,
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            hidden_size=n_hidden,
+            cell=cell,
+            max_len=max_len,
+        )
+        receiver = core.RnnReceiverDeterministic(
+            receiver,
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            hidden_size=n_hidden,
+            cell=cell,
+        )
+        game = core.SenderReceiverRnnReinforce(
+            sender,
+            receiver,
+            loss_fn,
+            sender_entropy_coeff=entropy_coeff,
+            receiver_entropy_coeff=0,
+        )
+        callbacks = []
+    else:
+        sender = core.RnnSenderGS(
+            sender,
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            hidden_size=n_hidden,
+            cell=cell,
+            max_len=max_len,
+            temperature=temperature,
+        )
+        receiver = core.RnnReceiverGS(
+            receiver,
+            vocab_size=vocab_size,
+            embed_dim=embed_dim,
+            hidden_size=n_hidden,
+            cell=cell,
+        )
+        game = core.SenderReceiverRnnGS(
+            sender,
+            receiver,
+            loss_fn,
+        )
+        callbacks = [core.TemperatureUpdater(agent=sender, decay=0.9, minimum=0.1)]
     return game, callbacks

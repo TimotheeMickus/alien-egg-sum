@@ -16,7 +16,7 @@ import skopt
 from callbacks import EarlyStopperCallback, EarlyStop, LengthCurriculum
 from config import get_args, get_search_space
 from data import SumGameDataset, to_dataloader, generate_datafiles
-from archs import get_regression_game, get_categorization_game
+from archs import get_game
 
 # torch.autograd.set_detect_anomaly(True)
 
@@ -39,17 +39,15 @@ def train_model(
     curriculum_length=20,
     n_updates=7,
     save_dir=pathlib.Path("best_model"),
+    mechanism="reinforce",
+    temperature=1.0,
     **ignore,
 ):
 
     early_stopper = EarlyStopperCallback(save_dir=save_dir)
 
-    get_game = (
-        get_categorization_game
-        if game_type == "categorization"
-        else get_regression_game
-    )
     game, cbs = get_game(
+        game_type=game_type,
         n_features=train_loader.dataset.get_n_features(),
         maxint=train_loader.dataset.maxint,
         vocab_size=vocab_size,
@@ -58,6 +56,8 @@ def train_model(
         cell=cell,
         max_len=max_len,
         entropy_coeff=entropy_coeff,
+        temperature=temperature,
+        mechanism=mechanism,
     )
     optimizer = core.build_optimizer(game.parameters())
     if tensorboard_dir:
