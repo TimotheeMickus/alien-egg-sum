@@ -48,12 +48,12 @@ class SumGameSampler(Sampler):
             yield acc
 
 
-class SumGameDataset(Dataset):
-    """Working out a memory efficient dataset representation
-    Here: N is the maximum integer for the operator and operand in our sum game, so the total is at most 2N"""
-
-    def __init__(self, path, maxint=0):
-        self.maxint = maxint
+class SumGameOneHotDataset(Dataset):
+    def __init__(self, path, N=None):
+        self.N = N
+        self.two_N = 2 * N
+        self.one_hots = torch.eye(N + 1)
+        self.one_hots.requires_grad = False
         self.items = []
         with open(path, "r") as istr:
             istr = map(str.strip, istr)
@@ -61,9 +61,33 @@ class SumGameDataset(Dataset):
             for row in istr:
                 row = list(map(int, row))
                 self.items.append(row)
-                self.maxint = max(self.maxint, row[-1])
-        self.bitlen = len(bin(self.maxint)[2:])
-        print(f"maxint={self.maxint}, bitlen={self.bitlen}")
+        print(f"N={self.N}")
+
+    def get_n_features(self):
+        return self.one_hots.size(0) * 2
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        a, b, s = self.items[idx]
+        ipt = torch.cat([self.one_hots[a], self.one_hots[b]], dim=0).float()
+        # retrieve the one hots and the target
+        return ipt, s
+
+
+class SumGameStructuredDataset(Dataset):
+    def __init__(self, path, two_N):
+        self.two_N = two_N
+        self.items = []
+        with open(path, "r") as istr:
+            istr = map(str.strip, istr)
+            istr = map(str.split, istr)
+            for row in istr:
+                row = list(map(int, row))
+                self.items.append(row)
+        self.bitlen = len(bin(self.two_N)[2:])
+        print(f"2N={self.two_N}, bitlen={self.bitlen}")
 
     def get_n_features(self):
         return self.bitlen * 2
@@ -80,7 +104,7 @@ class SumGameDataset(Dataset):
     def __getitem__(self, idx):
         a, b, s = self.items[idx]
         ipt = self.get_bit_rep(a) + self.get_bit_rep(b)
-        # retrieve the one hots and the target
+        # retrieve the bitvecs and the target
         return torch.tensor(ipt, dtype=torch.float), s
 
 

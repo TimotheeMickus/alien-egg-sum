@@ -15,7 +15,12 @@ import skopt
 
 from callbacks import EarlyStopperCallback, EarlyStop, LengthCurriculum
 from config import get_args, get_search_space
-from data import SumGameDataset, to_dataloader, generate_datafiles
+from data import (
+    SumGameStructuredDataset,
+    SumGameOneHotDataset,
+    to_dataloader,
+    generate_datafiles,
+)
 from archs import get_game
 
 # torch.autograd.set_detect_anomaly(True)
@@ -41,6 +46,7 @@ def train_model(
     save_dir=pathlib.Path("best_model"),
     mechanism="reinforce",
     temperature=1.0,
+    reduction="none",
     **ignore,
 ):
 
@@ -49,7 +55,7 @@ def train_model(
     game, cbs = get_game(
         game_type=game_type,
         n_features=train_loader.dataset.get_n_features(),
-        maxint=train_loader.dataset.maxint,
+        maxint=train_loader.dataset.two_N,
         vocab_size=vocab_size,
         embed_dim=embed_dim,
         n_hidden=n_hidden,
@@ -58,6 +64,7 @@ def train_model(
         entropy_coeff=entropy_coeff,
         temperature=temperature,
         mechanism=mechanism,
+        reduction=reduction,
     )
     optimizer = core.build_optimizer(game.parameters())
     if tensorboard_dir:
@@ -104,8 +111,20 @@ if __name__ == "__main__":
         print(f"generating data in {args.data_dir}...")
         generate_datafiles(args.data_dir, args.maxint)
         print("done.")
-    train = SumGameDataset(args.data_dir / "train.txt")
-    dev = SumGameDataset(args.data_dir / "dev.txt", maxint=train.maxint)
+    train_dss = {
+        "structured": SumGameStructuredDataset(
+            args.data_dir / "train.txt", two_N=(args.maxint - 1) * 2
+        ),
+        "one-hot": SumGameOneHotDataset(
+            args.data_dir / "train.txt", N=(args.maxint - 1)
+        ),
+    }
+    dev_dss = {
+        "structured": SumGameStructuredDataset(
+            args.data_dir / "dev.txt", two_N=(args.maxint - 1) * 2
+        ),
+        "one-hot": SumGameOneHotDataset(args.data_dir / "dev.txt", N=(args.maxint - 1)),
+    }
 
     if args.do_hypertune:
         if args.gp_result_dump.is_file():
@@ -116,7 +135,7 @@ if __name__ == "__main__":
         else:
             open(args.gp_result_dump, "w").close()
         search_space = get_search_space()
-        print(f"searching for optimal hyperparameters in search space: {search_space}")
+        print(f"searching for optimal hyperparameters.")
 
         @skopt.utils.use_named_args(search_space)
         def gp_train(**hparams):
@@ -127,8 +146,12 @@ if __name__ == "__main__":
             print(f"hparams: {hparams}")
             core.get_opts().__dict__.update(hparams)
             print("building data loaders...")
-            train_loader = to_dataloader(train, batch_size=int(hparams["batch_size"]))
-            dev_loader = to_dataloader(dev, batch_size=int(hparams["batch_size"]))
+            train_ds = train_dss[hparams["ipt_format"]]
+            dev_ds = dev_dss[hparams["ipt_format"]]
+            train_loader = to_dataloader(
+                train_ds, batch_size=int(hparams["batch_size"])
+            )
+            dev_loader = to_dataloader(dev_ds, batch_size=1024)
             print("done.")
 
             best_per_run = []

@@ -30,42 +30,83 @@ class ReceiverCategorization(nn.Module):
         self.output = nn.Linear(n_hidden, n_features)
 
     def forward(self, x, _input, _aux_input):
-        return self.output(torch.sigmoid(x))
+        return self.output(F.relu(x))
 
 
-def categorization_loss_fn(
-    sender_input, _message, _receiver_input, receiver_output, labels, _aux_input
+class CategorizationLoss(nn.Module):
+    def __init__(self, reduction="none"):
+        super().__init__()
+        self.reduction = reduction
+
+    def forward(
+        self,
+        sender_input,
+        _message,
+        _receiver_input,
+        receiver_output,
+        labels,
+        _aux_input,
+    ):
+        redux = self.reduction if self.training else "none"
+        receiver_guess = receiver_output.argmax(dim=1)
+        acc = (receiver_guess == labels.view_as(receiver_guess)).float().detach()
+        loss = F.cross_entropy(receiver_output, labels.view(-1), reduction=redux)
+        if redux != "none":
+            loss = loss.view(1).expand_as(labels)
+        return loss, {"acc": acc, "bare_loss": loss.detach()}
+
+
+class RegressionLoss(nn.Module):
+    def __init__(self, reduction="none"):
+        super().__init__()
+        self.reduction = reduction
+
+    def forward(
+        self,
+        sender_input,
+        _message,
+        _receiver_input,
+        receiver_output,
+        labels,
+        _aux_input,
+    ):
+        redux = self.reduction if self.training else "none"
+        receiver_output = receiver_output.view(-1)
+        labels = labels.view(-1)
+        acc = (
+            (receiver_output.round().int() == labels)
+            .float()
+            .detach()
+            .view_as(receiver_output)
+        )
+        loss = F.mse_loss(receiver_output, labels.float(), reduction=redux)
+        if redux != "none":
+            loss = loss.view(1).expand_as(labels)
+        return loss, {"acc": acc, "bare_loss": loss.detach()}
+
+
+def get_game(
+    game_type,
+    n_features,
+    maxint,
+    vocab_size,
+    embed_dim,
+    n_hidden,
+    cell,
+    max_len,
+    entropy_coeff,
+    temperature,
+    mechanism,
+    reduction,
 ):
-    receiver_guess = receiver_output.argmax(dim=1)
-    acc = (receiver_guess == labels.view_as(receiver_guess)).float().detach()
-    loss = F.cross_entropy(receiver_output, labels.view(-1), reduction="none")
-    return loss, {"acc": acc, "bare_loss": loss.detach()}
-
-
-def regression_loss_fn(
-    sender_input, _message, _receiver_input, receiver_output, labels, _aux_input
-):
-    receiver_output = receiver_output.view(-1)
-    labels = labels.view(-1)
-    acc = (
-        (receiver_output.round().int() == labels)
-        .float()
-        .detach()
-        .view_as(receiver_output)
-    )
-    loss = F.mse_loss(receiver_output, labels.float(), reduction="none")
-    return loss, {"acc": acc, "bare_loss": loss.detach()}
-
-
-def get_game(game_type, n_features, maxint, vocab_size, embed_dim, n_hidden, cell, max_len, entropy_coeff, temperature, mechanism):
     sender = Sender(n_hidden=n_hidden, n_features=n_features)
-    if game_type=="regression":
+    if game_type == "regression":
         receiver = ReceiverRegression(n_hidden=n_hidden, maxint=maxint, n_features=1)
-        loss_fn = regression_loss_fn
+        loss = RegressionLoss(reduction=reduction)
     else:
         receiver = ReceiverCategorization(n_hidden=n_hidden, n_features=maxint + 1)
-        loss_fn = categorization_loss_fn
-    if mechanism=="reinforce":
+        loss = CategorizationLoss(reduction=reduction)
+    if mechanism == "reinforce":
         sender = core.RnnSenderReinforce(
             sender,
             vocab_size=vocab_size,
@@ -84,7 +125,7 @@ def get_game(game_type, n_features, maxint, vocab_size, embed_dim, n_hidden, cel
         game = core.SenderReceiverRnnReinforce(
             sender,
             receiver,
-            loss_fn,
+            loss,
             sender_entropy_coeff=entropy_coeff,
             receiver_entropy_coeff=0,
         )
@@ -109,7 +150,7 @@ def get_game(game_type, n_features, maxint, vocab_size, embed_dim, n_hidden, cel
         game = core.SenderReceiverRnnGS(
             sender,
             receiver,
-            loss_fn,
+            loss,
         )
         callbacks = [core.TemperatureUpdater(agent=sender, decay=0.9, minimum=0.1)]
     return game, callbacks
