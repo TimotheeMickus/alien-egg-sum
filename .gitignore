@@ -1,8 +1,10 @@
+.tb/*
+.data/*
+!*.zip
+
 .venv/
-.data/
 __pycache__/
 
-.tb/
 *.pkl
 *.pt
 best_results.txt
