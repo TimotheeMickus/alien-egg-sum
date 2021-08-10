@@ -1,6 +1,6 @@
 {
   "game_type": "regression",
-  "maxint": 64,
+  "maxint": 126,
   "max_len": 8,
   "embed_dim": 16,
   "n_hidden": 16,
