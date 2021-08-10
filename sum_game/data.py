@@ -49,11 +49,12 @@ class SumGameSampler(Sampler):
 
 
 class SumGameOneHotDataset(Dataset):
-    def __init__(self, path, N=None):
+    def __init__(self, path, N=None, keep_pairs=False):
         self.N = N
         self.two_N = 2 * N
         self.one_hots = torch.eye(N + 1)
         self.one_hots.requires_grad = False
+        self.keep_pairs = False
         self.items = []
         with open(path, "r") as istr:
             istr = map(str.strip, istr)
@@ -73,13 +74,16 @@ class SumGameOneHotDataset(Dataset):
         a, b, s = self.items[idx]
         ipt = torch.cat([self.one_hots[a], self.one_hots[b]], dim=0).float()
         # retrieve the one hots and the target
+        if self.keep_pairs:
+            return ipt, s, torch.tensor([a, b], dtype=torch.float)
         return ipt, s
 
 
 class SumGameStructuredDataset(Dataset):
-    def __init__(self, path, two_N):
+    def __init__(self, path, two_N, keep_pairs=False):
         self.two_N = two_N
         self.items = []
+        self.keep_pairs = keep_pairs
         with open(path, "r") as istr:
             istr = map(str.strip, istr)
             istr = map(str.split, istr)
@@ -104,6 +108,8 @@ class SumGameStructuredDataset(Dataset):
     def __getitem__(self, idx):
         a, b, s = self.items[idx]
         ipt = self.get_bit_rep(a) + self.get_bit_rep(b)
+        if self.keep_pairs:
+            return torch.tensor(ipt, dtype=torch.float), s, torch.tensor([a, b], dtype=torch.float)
         # retrieve the bitvecs and the target
         return torch.tensor(ipt, dtype=torch.float), s
 
