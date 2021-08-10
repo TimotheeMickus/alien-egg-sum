@@ -1,3 +1,5 @@
+import json
+
 import egg.core as core
 
 import torch
@@ -154,3 +156,24 @@ def get_game(
         )
         callbacks = [core.TemperatureUpdater(agent=sender, decay=0.9, minimum=0.1)]
     return game, callbacks
+
+def load_game(config_file, save_file):
+    with open(config_file, "r") as ostr:
+        config_opts = json.load(ostr)
+    game, _ = get_game(
+        config_opts["game_type"],
+        config_opts["n_features"],
+        config_opts["maxint"],
+        config_opts["vocab_size"],
+        config_opts["embed_dim"],
+        config_opts["n_hidden"],
+        config_opts["cell"],
+        config_opts["max_len"],
+        config_opts["entropy_coeff"],
+        config_opts["temperature"],
+        config_opts["mechanism"],
+        config_opts["reduction"],
+    )
+    _, game_ckpt, *_ = torch.load(save_file)
+    game.load_state_dict(game_ckpt)
+    return game
