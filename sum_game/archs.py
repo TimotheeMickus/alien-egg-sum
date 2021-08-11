@@ -157,6 +157,7 @@ def get_game(
         callbacks = [core.TemperatureUpdater(agent=sender, decay=0.9, minimum=0.1)]
     return game, callbacks
 
+
 def load_game(config_file, save_file):
     with open(config_file, "r") as ostr:
         config_opts = json.load(ostr)

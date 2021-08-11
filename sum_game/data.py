@@ -109,7 +109,11 @@ class SumGameStructuredDataset(Dataset):
         a, b, s = self.items[idx]
         ipt = self.get_bit_rep(a) + self.get_bit_rep(b)
         if self.keep_pairs:
-            return torch.tensor(ipt, dtype=torch.float), s, torch.tensor([a, b], dtype=torch.float)
+            return (
+                torch.tensor(ipt, dtype=torch.float),
+                s,
+                torch.tensor([a, b], dtype=torch.float),
+            )
         # retrieve the bitvecs and the target
         return torch.tensor(ipt, dtype=torch.float), s
 

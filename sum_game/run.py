@@ -47,25 +47,29 @@ def train_model(
     mechanism="reinforce",
     temperature=1.0,
     reduction="none",
+    ipt_format="structured",
     **ignore,
 ):
 
-    early_stopper = EarlyStopperCallback(save_dir=save_dir)
+    game_config = {
+        "game_type": game_type,
+        "n_features": train_loader.dataset.get_n_features(),
+        "maxint": train_loader.dataset.two_N,
+        "vocab_size": int(vocab_size),
+        "embed_dim": int(embed_dim),
+        "n_hidden": int(n_hidden),
+        "cell": cell,
+        "max_len": max_len,
+        "entropy_coeff": float(entropy_coeff),
+        "temperature": float(temperature),
+        "mechanism": mechanism,
+        "reduction": reduction,
+    }
 
-    game, cbs = get_game(
-        game_type=game_type,
-        n_features=train_loader.dataset.get_n_features(),
-        maxint=train_loader.dataset.two_N,
-        vocab_size=vocab_size,
-        embed_dim=embed_dim,
-        n_hidden=n_hidden,
-        cell=cell,
-        max_len=max_len,
-        entropy_coeff=entropy_coeff,
-        temperature=temperature,
-        mechanism=mechanism,
-        reduction=reduction,
+    early_stopper = EarlyStopperCallback(
+        save_dir=save_dir, config={"ipt_format": ipt_format, **game_config}
     )
+    game, cbs = get_game(**game_config)
     optimizer = core.build_optimizer(game.parameters())
     if tensorboard_dir:
         path = pathlib.Path(tensorboard_dir) / secrets.token_urlsafe(8)

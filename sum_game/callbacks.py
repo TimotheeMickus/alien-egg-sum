@@ -19,6 +19,7 @@ class EarlyStopperCallback(core.Callback):
         optimum="max",
         patience=10,
         save_dir=pathlib.Path("best_model"),
+        config=None,
     ):
         self.patience = patience
         self.metric = tracked_metric
@@ -30,6 +31,7 @@ class EarlyStopperCallback(core.Callback):
             self.is_better = lambda val: self.best_val < val
         else:
             self.is_better = lambda val: self.best_val > new
+        self.config = config
 
     def save_if_best(self):
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -52,6 +54,9 @@ class EarlyStopperCallback(core.Callback):
             torch.save(save_items, self.save_dir / "model.pt")
             with open(self.save_dir / "best_results.txt", "w") as ostr:
                 print(self.best_val, file=ostr)
+            if self.config is not None:
+                with open(self.save_dir / "config.json", "w") as ostr:
+                    json.dump(self.config, ostr, indent=2)
             print("\033[92m" + "Saved new best model" + "\033[0m")
 
     def on_validation_end(self, loss, logs, epoch):
