@@ -49,8 +49,8 @@ The angle we take here consists in comparing these two approaches, and see wheth
 
 \subsection{Model implementation} \label{sec:experiment:models}
 
-The two types of models we will compare are designed to be as similar as possible. 
-They are composed of two agents each: one sender, which uses an input embedding representing the pair $\langle a,b \rangle$ to prime a {\sc rnn} and produce a message, and one receiver, which reads the sender's message using a {\sc rnn} and derives a prediction from the final hidden state.
+We design our two types of models to be as similar as possible. 
+They are composed of two agents each: one sender, which uses an input pair embedding $E(\langle a,b \rangle)$ to prime a {\sc rnn} and produce a message, and one receiver, which reads the sender's message using a {\sc rnn} and derives a prediction from the final hidden state.
 
 The sole difference between the two types of model is how the final prediction is derived, and the loss function used to train the models.
 In the categorization approach, the final hidden state is linearly transformed into a distribution over all $2N + 1$ possible answers; the entire model is then trained to minimize cross entropy.
@@ -65,7 +65,7 @@ All models are trained and tested and the same random splits, to ensure our expe
 
 \subsection{Hyperparameter space} \label{sec:experiment:hparams}
 
-The hyperparameters that we consider can be divided in four categories.
+We consider four categories of hyperparameters.
 
 \vspace*{-0.5em}
 \paragraph{Learning mechanism:} 
@@ -74,8 +74,8 @@ The hyperparameters that we consider can be divided in four categories.
     \itemsep-0.25em 
     \item what learning rate to use
     \item \label{it:hp:mechanism} whether gradient is propagated with Gumbel Softmax or {\sc reinforce}
-    \item \label{it:hp:temp} what temperature to apply (if using a Gumbel Softmax)
-    \item \label{it:hp:entropy} what entropy coefficient to apply to the sender (if using {\sc reinforce})
+    \item \label{it:hp:temp} what initial temperature to apply to the sender's distribution over the vocabulary (if using a Gumbel Softmax)
+    \item \label{it:hp:entropy} what coefficient to apply for the entropy penalty (if using {\sc reinforce})
 \end{enumerate}
 
 \vspace*{-0.5em}
@@ -83,22 +83,26 @@ The hyperparameters that we consider can be divided in four categories.
 \begin{enumerate}[resume*]
     \vspace*{-0.5em}
     \itemsep-0.25em 
-    \item whether to represent inputs with one-hots or binary expansions\footnote{
-        In the latter case, embedding components correspond to the 0-padded binary expansion of the integer.
-        This limits the number of parameter weights used to represent items and encodes the structure of the input space more explicitly.
-    }
-    \item \label{it:hp:batch} how many examples to present per batch
+    \item \label{it:hp:batch} how many examples to group per batch
     \item \label{it:hp:avg} whether to average the loss over all examples in a batch
+    \item \label{it:hp:ipt} whether to represent inputs with one-hots or binary expansions
 \end{enumerate}
+
+Hyperparameter \ref{it:hp:ipt} controls how pairs are presented to the sender.
+When using one-hot vectors, we represent an integer $i$ as a vector with $N+1$ components, all of which are set to 0, except for the $i$\textsuperscript{th} component, which is set to 1. 
+Binary expansion vectors components correspond to the 0-padded binary expansion of the integer: for example, 25 would be represented with the vector $\langle 0, 0, 1, 1, 0, 0, 1\rangle$, corresponding to its binary notation, 11001, preceded by as many 0 as necessary to encode all numbers in our dataset.\footnote{
+    This input format may prove useful in that it limits the number of weights used to represent items and encodes the structure of the input space more explicitly.
+}
+Pairs of integers are represented by concatenating the two integer representations; pair embeddings are then fed to the sender's {\sc rnn}.
 
 \vspace*{-0.5em}
 \paragraph{Model architecture:}
 \begin{enumerate}[resume*]
     \vspace*{-0.5em}
     \itemsep-0.25em 
-    \item whether to use a {\sc rnn}, {\sc gru} or {\sc lstm} for generating \& decoding messages
-    \item what dimensionality the symbol embeddings should have
-    \item what dimensionality the hidden representations should have
+    \item whether to use a {\sc rnn}, {\sc gru} or {\sc lstm}
+    \item the dimension of embeddings
+    \item the dimension of hidden representations
 \end{enumerate}
 
 \vspace*{-0.5em}
@@ -106,44 +110,49 @@ The hyperparameters that we consider can be divided in four categories.
 \begin{enumerate}[resume*]
     \vspace*{-0.5em}
     \itemsep-0.25em 
-    \item how many distinct symbols to use
-    \item \label{it:hp:cl} whether or not to use a curriculum learning mechanism\footnote{
-        I.e., instead of using the maximum default length for messages, we set the maximum length to 1 before training begins and update it every so often, until the original maximum default length is reached. 
-        Exploring the full action space is therefore easier for the sender.
-        As messages cannot be too complex, the receiver must therefore adopt a policy that covers the most general cases.
-        Whenever the maximum length is updated, the agents can build on their simpler, partly correct, previous language to reach higher accuracy.
-    }
-    \item \label{it:hp:cl-upd} how often the maximum length should be updated during the curriculum
-    \item \label{it:hp:cl-len} how many epochs the curriculum learning should span
+    \item how many distinct symbols to use; i.e., what size of vocabulary to use
+    \item \label{it:hp:cl} whether or not to use a curriculum mechanism
+    \item \label{it:hp:cl-upd} how often length should be increased
+    \item \label{it:hp:cl-len} how many epochs the curriculum should span
 \end{enumerate}
 
-Note that these hyperparameters do not include maximum message length, which we set to 8 in all experiments, for simplicity.
-Also note that there is an interaction between hyperparameters.
-For instance, \ref{it:hp:temp} and \ref{it:hp:entropy} are never in effect jointly, and depend both on the value for \ref{it:hp:mechanism}; likewise, if \ref{it:hp:batch} is set to 1, then \ref{it:hp:avg} has no effect; lastly, \ref{it:hp:cl-upd} and \ref{it:hp:cl-len} depend on \ref{it:hp:cl} being set.
+We call `curriculum' the following mechanism: instead of using the maximum default length for messages, we set the maximum length to 1 before training begins.
+We then increase this maximum length at specific epochs during the training process.
+Hyperparameter \ref{it:hp:cl-len} controls the total length of this curriculum, whereas hyperparameter \ref{it:hp:cl-upd} controls how many such increases there are.
+Given these hyperparameters, we space these length increments evenly throughout the full duration of the curriculum.\footnote{
+    Such a curriculum can in principle prove helpful to the agents.
+    Exploring a more limited action space is easier for the sender.
+    As messages cannot be too complex, the receiver must also adopt a policy that covers the most general cases.
+    Whenever the maximum length is increased, agents can build on their previous language to reach higher accuracy.
+}
+
+Hyperparameters do not include maximum message length, which we set to 8 in all experiments, for simplicity.
+Also note that the interaction between hyperparameters.
+Temperature \ref{it:hp:temp} and entropy \ref{it:hp:entropy} are never in effect jointly, and depend on the gradient propagation mechanism \ref{it:hp:mechanism}; likewise, if the batch size \ref{it:hp:batch} is set to 1, then loss averaging \ref{it:hp:avg} has no effect; lastly, curriculum updates \ref{it:hp:cl-upd} and duration \ref{it:hp:cl-len} depend on a curriculum being set \ref{it:hp:cl}.
 
 \subsection{Selecting hyperparameters} \label{sec:experiment:bayes-opt}
 
-Hyperparameter choices are likely to impact regression-based game differently from categorization-based games. %, and therefore using the same hyperparameter configuration for both models is to be avoided.
+Hyperparameter choices are likely to impact regression game differently from categorization games. %, and therefore using the same hyperparameter configuration for both models is to be avoided.
 We therefore require a principled way of selecting hyperparameters. %; for instance, using a grid search or random search approach.
-Given the large search space we consider (see Subsection~\ref{sec:experiment:hparams}), a grid search would be inefficient.
+Given the large search space we consider (cf. Subsection~\ref{sec:experiment:hparams}), a grid search would be inefficient.
 %Moreover, we wish to take into account that some parameters are interrelated, and therefore a random search approach may not be optimal.
-Instead, we opt for Bayesian Optimization. 
-This technique consists in iteratively selecting hyperparameters that are the most likely to improve some objective value over the current optimum.
+Instead we opt for Bayesian Optimization: we iteratively select hyperparameters that are the most likely to improve some objective value over the current optimum.
 The probability of yielding an improvement given a configuration of hyperparameters is updated after each iteration using Bayes' theorem.
 
-We perform such 100 iterations in total.
-In order to construct a prior distribution to bootstrap the Bayesian Optimization process, we spend the first 10 iterations testing purely random samples of hyperparameter configurations. 
-We use accuracy on a development set as the objective value to optimize: for each configuration of hyperparameters sampled, we train 3 different models for up to 100 epochs, compute the maximum accuracy they reach on the development set and return the average.\footnote{
-    This average is motivated by the fact that different runs with the same hyperparameter configuration can in practice bring about very different results.
-}
+We perform 100 iterations in total.
+The first 10 iterations are purely random samples of hyperparameter configurations, from which we construct a prior distribution to bootstrap the selection process. 
+We use accuracy on a development set as the objective value to optimize.
+For each configuration of hyperparameters sampled, we train 3 different models for up to 100 epochs, compute the maximum accuracy they reach on the development set and return the average.%\footnote{
+%    This average is motivated by the fact that different runs with the same hyperparameter configuration can in practice bring about very different results.
+%}
 
-This methodology is however computationally costly. %\footnote{
+This methodology is computationally costly. %\footnote{
 %    Given the 2 types of models, the 100 hyperparameter configuration sampling, and the 3 runs per configuration, we train 600 models in total.
 %}
-In order to limit the time required by each experiment, we implement two mechanisms.
-First, we stop early any run that has not seen any improvement in accuracy over 10 epochs.
-Second, we keep track and save the model that performs best on development data at any point during the experiment, and will use only this optimal model for experiments down the line.
-These two mechanisms may impact results: in principle, configurations could yield higher performances if we used a longer patience or no early-stopping; likewise, we may end up selecting for manual analysis a model that happens to apply well to the development set.
+To limit the time required by each experiment, we implement two mechanisms.
+First, we stop early any run that has not improved in accuracy over 10 epochs.
+Second, we save the model that performs best on development data at any point during the experiment, and consider only this optimal model in our analyses.
+These two mechanisms may impact results: configurations could yield higher performances if we used a longer patience or no early-stopping; likewise, we may end up selecting a model that happens to perform well on the development set.
 
 \section{Results \& Analysis} \label{sec:results}
 
@@ -179,11 +188,11 @@ These two mechanisms may impact results: in principle, configurations could yiel
 
 We begin by focusing on the hyperparameters corresponding to the best models, shown in Table~\ref{tab:hparams-best}. 
 Hyperparameters that have no effect are displayed between parentheses. 
-Some parallels between regression and categorization models exist: both use a {\sc gru}-based architecture, with binary expansion vectors to embed the input pairs, trained with a Gumbel-Softmax and no message length curriculum. 
+Some parallels between regression and categorization models exist: both use a {\sc gru}-based architecture, binary expansion vectors, Gumbel-Softmax and no curriculum. 
 
-The remaining hyperparameters are however in stark contrast. 
+All other hyperparameters are in stark contrast. 
 The regression model employs a lightweight architecture, with comparatively few neurons, whereas the categorization model uses the largest available size.
-While the regression model benefits from few examples per batch, the categorization model uses large batches and averages the loss over all items.
+The regression model uses small batches, while the categorization model uses large batches and averages the loss over all items.
 The initial temperature of the Gumbel-Softmax are 6 orders of magnitude apart.
 This disparity shows how crucial the hyperparameter selection process is.
 
@@ -219,7 +228,7 @@ Automatic metrics for the most accurate model of each type are displayed in Tabl
 %Subtable~\ref{tab:auto:reg} displays the results for the best regression-based model, whereas Subtable~\ref{tab:auto:cat} displays the results for the best categorization-based model.
 Both models yield accuracy scores much higher than random baselines.
 For reference, given that we use $N=63$, a most frequent baseline corresponds to an accuracy of $0.016$, whereas a uniform random guess yields an accuracy of $0.008$.\footnote{
-    We refer the reader to Appendix~\ref{sec:baselines} for the description and computation of these baselines.
+    Cf. Appendix~\ref{sec:baselines} for a description of these baselines.
 }
 The regression-based model yields a much higher accuracy than the categorization-based model.
 The former scores in the $71\sim74\%$ range, while the latter only reaches $16\sim20\%$.
@@ -268,15 +277,16 @@ This high margin of improvement strongly suggests that a numerical regression ap
 Figure~\ref{fig:error} displays the margin of error between the prediction of the receiver and the target sum $a+b$.
 %Sub-figure~\ref{fig:error:reg} corresponds to the regression-based model, while Sub-figure~\ref{fig:error:cat} corresponds to the categorization-based model. 
 The red line on each sub-figure delineates predictions counted as correct from those counted as erroneous.
-Comparing the two subfigures reveals that the regression-based model's errors are of a lesser magnitude ($<4$) than the categorization-based model ($<40$).
-Both models tend to err more for extreme target sums: this stems from the fact that for targets near 0 or 2N, there are fewer pairs $\langle a,b \rangle$ that sum to these values, hence there are fewer datapoints to train the models on these values.
+Comparing the two subfigures reveals that the regression-based model's errors are of a lesser magnitude than the categorization-based model.
+Both models tend to err more for extreme target sums.
+To explain this, note that since there are fewer pairs $\langle a,b \rangle$ whose sums are near 0 or $2N$, there are fewer datapoints to train the models on these values.
 
 Another point to take note of is that the scatter-plot of categorization-based exhibits linear trends.
 These are due to the model predicting the same value for a number of distinct contiguous targets.
 For instance, all target sums below 17 will correspond to a prediction of 17, whereas all target sums above 90 will correspond to a prediction of 90.
-This behavior gives rise to errors of greater and greater magnitude for values near the extrema 0 and 2N, and thus translates as the two linear trends on either side of the scatter-plot.
-This behavior is however not limited to extreme values; instead, it seems to apply to a number of intervals of target sums throughout the development set.
-As a concrete example, most of the pairs whose sum is between 65 and 61 are predicted to sum to 63.
+This gives rise to errors of greater and greater magnitude for values near the extrema 0 and 2N, and thus translates as the two linear trends on either side of the scatter-plot.
+This behavior is not limited to extreme values; instead, it seems to apply to a number of intervals of target sums throughout the development set.
+As a concrete example, most pairs whose sum is between 65 and 61 are predicted to sum to 63.
 
 \begin{table}%{l}{0.5\textwidth}
     \centering
@@ -554,12 +564,12 @@ As $a$ cannot be negative, we thus get $y+1$ different solutions.
 If $N < y \leq 2N$, then we have the trivial solution $a=N$ and $b=y-N$.
 All other solutions will have the form $a'+b'=y$, with $a'=a-k$ and $b'=b+k$.
 As $b$ cannot be greater than $N$, we thus get $N - (y - N) + 1= 2N - y + 1$ solutions.
-Rearranging both cases, and by independence of $a$ and $b$, we thus get:
+Rearranging both cases, we thus get:
 \begin{equation*}
     P(Y=y) = \frac{1}{(N+1)^2}\bigg(\min(y, 2N - y) + 1\bigg)
 \end{equation*}
 
-From this, we can get a most frequent baseline by simply considering
+This yields a most frequent baseline by considering
 \begin{equation*}
     \max_{y^*} P(Y=y^*)
 \end{equation*}
@@ -567,7 +577,7 @@ This optimum is found at $y^*=N$.
 Producing this value regardless of input would yield an accuracy of $\frac{1}{N+1}$.
 %
 A less strict random baseline would consist in selecting a value uniformly at random between 0 and $2N$; i.e. $\hat{Y} =  U(0, 2N)$.
-By independence and marginalization, we see that:
+This can be found as
 \begin{align*}
     P(Y=\hat{Y})    &= \sum_{y \in \Omega(Y)} P(Y=y)P(\hat{Y}=y) \\
                     &= \frac{1}{2N+1} \sum_{y \in \Omega(Y)} P(Y=y) \\
