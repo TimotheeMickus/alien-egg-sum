@@ -9,7 +9,9 @@ This repository contains:
  + all necessary info to replicate the experiments: data, models, source code
 
 The code is available in the `sum_game/` directory.
-The `outputs/` directory contains productions from the two models, such as the messages they produced
+Data and models can be found under `.data/` and `.models/` respectively.
+The `outputs/` directory contains productions from the two models; i.e., the messages they produced.
+Source code for the report, including images, are available in `tex_report/`.
 
 ## Installation
 
