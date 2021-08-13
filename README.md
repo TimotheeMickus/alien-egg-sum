@@ -40,7 +40,7 @@ python3 sum_game/run.py \
 
 Likewise for a categorization model:
 ```
-python3 sum_game/run.py
+python3 sum_game/run.py \
     --do_hypertune \
     --game_type categorization \
     --max_len 8 \
