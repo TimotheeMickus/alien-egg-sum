@@ -38,6 +38,7 @@ def dump_messages(game, dataset, out_file, game_type):
         messages = game.sender(all_pair_embs).argmax(dim=-1)
         loss, interaction = game(all_pair_embs, all_targets)
         all_matches = interaction.aux["acc"].int()
+        # 🙈 in practice, all messages reach the max length.
         all_preds = interaction.receiver_output[:, -1, :]
         if game_type == "categorization":
             all_preds = all_preds.argmax(dim=-1)
@@ -62,6 +63,7 @@ def stats(game, dataset):
         iter(to_dataloader(dataset, batch_size=len(dataset)))
     )
     loss, interaction = game(all_paired_inputs, all_targets)
+    import pdb; pdb.set_trace()
     return loss, interaction.aux["acc"].mean()
 
 
