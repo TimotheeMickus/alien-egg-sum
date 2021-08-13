@@ -50,6 +50,7 @@ def train_model(
     ipt_format="structured",
     **ignore,
 ):
+    """perform training (either for Bayesian Optimization or CLI)"""
 
     game_config = {
         "game_type": game_type,
@@ -143,6 +144,7 @@ if __name__ == "__main__":
 
         @skopt.utils.use_named_args(search_space)
         def gp_train(**hparams):
+            """perform training (for Bayesian Optimization)"""
             torch.cuda.empty_cache()
             hparams["embed_dim"] = 2 ** hparams["embed_pow"]
             hparams["n_hidden"] = 2 ** hparams["hidden_pow"]

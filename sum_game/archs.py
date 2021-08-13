@@ -8,6 +8,8 @@ import torch.nn.functional as F
 
 
 class Sender(nn.Module):
+    """Simple sender agent, from EGG basic game"""
+
     def __init__(self, n_hidden, n_features):
         super(Sender, self).__init__()
         self.fc1 = nn.Linear(n_features, n_hidden)
@@ -17,6 +19,8 @@ class Sender(nn.Module):
 
 
 class ReceiverRegression(nn.Module):
+    """Receiver agent when using MSE loss"""
+
     def __init__(self, n_hidden, maxint, n_features=1):
         super(ReceiverRegression, self).__init__()
         self.output = nn.Linear(n_hidden, n_features)
@@ -27,6 +31,8 @@ class ReceiverRegression(nn.Module):
 
 
 class ReceiverCategorization(nn.Module):
+    """Receiver agent when using XENT loss"""
+
     def __init__(self, n_hidden, n_features):
         super(ReceiverCategorization, self).__init__()
         self.output = nn.Linear(n_hidden, n_features)
@@ -36,6 +42,8 @@ class ReceiverCategorization(nn.Module):
 
 
 class CategorizationLoss(nn.Module):
+    """XENT loss"""
+
     def __init__(self, reduction="none"):
         super().__init__()
         self.reduction = reduction
@@ -59,6 +67,8 @@ class CategorizationLoss(nn.Module):
 
 
 class RegressionLoss(nn.Module):
+    """MSE loss"""
+
     def __init__(self, reduction="none"):
         super().__init__()
         self.reduction = reduction
@@ -101,6 +111,7 @@ def get_game(
     mechanism,
     reduction,
 ):
+    """construct game from arguments"""
     sender = Sender(n_hidden=n_hidden, n_features=n_features)
     if game_type == "regression":
         receiver = ReceiverRegression(n_hidden=n_hidden, maxint=maxint, n_features=1)
@@ -159,6 +170,7 @@ def get_game(
 
 
 def load_game(config_file, save_file):
+    """load game from save point"""
     with open(config_file, "r") as ostr:
         config_opts = json.load(ostr)
     game, _ = get_game(

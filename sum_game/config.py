@@ -8,6 +8,7 @@ import egg.core as core
 
 
 def get_search_space():
+    """get hyperparmeters to optimize for"""
     search_space = [
         skopt.space.Integer(1, 10, "uniform", name="embed_pow"),
         skopt.space.Integer(1, 10, "uniform", name="hidden_pow"),
@@ -28,6 +29,7 @@ def get_search_space():
 
 
 def get_args():
+    """get CLI args and initialize EGG"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--do_generate_data", action="store_true")
     parser.add_argument("--do_hypertune", action="store_true")

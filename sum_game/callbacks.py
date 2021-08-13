@@ -9,10 +9,14 @@ import torch
 
 
 class EarlyStop(Exception):
+    """Raised when training must stop"""
+
     pass
 
 
 class EarlyStopperCallback(core.Callback):
+    """Callback to determine when training must stop"""
+
     def __init__(
         self,
         tracked_metric="acc",
@@ -34,6 +38,7 @@ class EarlyStopperCallback(core.Callback):
         self.config = config
 
     def save_if_best(self):
+        """On the fly checkpoint save"""
         self.save_dir.mkdir(parents=True, exist_ok=True)
         to_save = True
         if (self.save_dir / "best_results.txt").is_file():
@@ -60,6 +65,7 @@ class EarlyStopperCallback(core.Callback):
             print("\033[92m" + "Saved new best model" + "\033[0m")
 
     def on_validation_end(self, loss, logs, epoch):
+        """check for improvements"""
         dump = dict(loss=loss)
         if self.metric in logs.aux:
             dump[self.metric] = logs.aux[self.metric].mean().item()
@@ -94,6 +100,8 @@ class EarlyStopperCallback(core.Callback):
 
 
 class LengthCurriculum(core.Callback):
+    """Callback to update message length incrementally throughout training"""
+
     def __init__(self, n_epochs=100, n_updates=7):
         max_len = core.get_opts().max_len
         self.curriculum = {

@@ -11,6 +11,7 @@ from data import SumGameStructuredDataset, SumGameOneHotDataset, to_dataloader
 
 
 def all_topsim(game, dataset):
+    """compute topographic similarity scores"""
     with torch.no_grad():
         all_pair_embs, all_targets, all_pairs = next(
             iter(to_dataloader(dataset, batch_size=len(dataset)))
@@ -31,6 +32,7 @@ def all_topsim(game, dataset):
 
 
 def dump_messages(game, dataset, out_file, game_type):
+    """write messages to out_file"""
     with torch.no_grad(), open(out_file, "w") as ostr:
         all_pair_embs, all_targets, all_pairs = next(
             iter(to_dataloader(dataset, batch_size=len(dataset)))
@@ -59,11 +61,11 @@ def dump_messages(game, dataset, out_file, game_type):
 
 
 def stats(game, dataset):
+    """compute loss and accuracy scores"""
     all_paired_inputs, all_targets, _ = next(
         iter(to_dataloader(dataset, batch_size=len(dataset)))
     )
     loss, interaction = game(all_paired_inputs, all_targets)
-    import pdb; pdb.set_trace()
     return loss, interaction.aux["acc"].mean()
 
 

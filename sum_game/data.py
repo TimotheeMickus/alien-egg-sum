@@ -12,6 +12,7 @@ from torch.utils.data import Dataset, DataLoader, Sampler
 
 
 def to_dataloader(dataset, batch_size, shuffle=True, drop_last=False):
+    """convert dataset to dataloader"""
     return DataLoader(
         dataset,
         batch_sampler=SumGameSampler(
@@ -21,6 +22,8 @@ def to_dataloader(dataset, batch_size, shuffle=True, drop_last=False):
 
 
 class SumGameSampler(Sampler):
+    """A (probably useless) sampler"""
+
     def __init__(self, dataset, batch_size, shuffle=True, drop_last=False):
         self.dataset = dataset
         self.batch_size = batch_size
@@ -49,6 +52,8 @@ class SumGameSampler(Sampler):
 
 
 class SumGameOneHotDataset(Dataset):
+    """Represent integers as one-hot vectors"""
+
     def __init__(self, path, N=None, keep_pairs=False):
         self.N = N
         self.two_N = 2 * N
@@ -80,6 +85,8 @@ class SumGameOneHotDataset(Dataset):
 
 
 class SumGameStructuredDataset(Dataset):
+    """Represent integers through binary expansion"""
+
     def __init__(self, path, two_N, keep_pairs=False):
         self.two_N = two_N
         self.items = []
@@ -119,7 +126,7 @@ class SumGameStructuredDataset(Dataset):
 
 
 def generate_datafiles(data_dir, N):
-    """Simple function to generate data, based on the max value N of the operand and operator"""
+    """Simple function to generate data, based on the max value N of integers to sum"""
     data_dir = pathlib.Path(data_dir)
     assert data_dir.is_dir()
     all_items = [(a, b, a + b) for a in range(N) for b in range(N)]
