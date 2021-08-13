@@ -61,7 +61,7 @@ In the \textbf{regression} approach, the final hidden state is transformed into 
 Throughout our experiments, we use $N=63$; i.e., all integers $\langle a,b \rangle$ are comprised between 0 and 63 included and their sum $s$ is between 0 and 126. 
 This corresponds to $64^2=4096$ possible pairs $\langle a,b \rangle$.
 We randomly split all possible pairs $\langle a,b \rangle$ in three groups. 80\% (3276 pairs) are used for training models, 10\% (410 pairs) are used for selecting hyperparameters, and 10\% (410 pairs) are used to further test the model's ability to generalize.
-All models are trained and tested with the same random splits, to ensure our experiments are comparable.
+To ensure our experiments are comparable, all models are trained and tested with the same random splits.
 
 \subsection{Hyperparameter space} \label{sec:experiment:hparams}
 
@@ -127,7 +127,7 @@ Given these hyperparameters, we space these length increments evenly throughout 
 }
 
 These hyperparameters do not include maximum message length, which we set to 8 in all experiments, for simplicity.
-Also note that the interaction between hyperparameters.
+Another point to note is the interaction between hyperparameters.
 Temperature \ref{it:hp:temp} and entropy \ref{it:hp:entropy} are never in effect jointly, and depend on the gradient propagation mechanism \ref{it:hp:mechanism}; likewise, if the batch size \ref{it:hp:batch} is set to 1, then loss averaging \ref{it:hp:avg} has no effect; lastly, curriculum updates \ref{it:hp:cl-upd} and duration \ref{it:hp:cl-len} depend on a curriculum being set \ref{it:hp:cl}.
 
 \subsection{Selecting hyperparameters} \label{sec:experiment:bayes-opt}
@@ -279,9 +279,9 @@ Comparing the two subfigures reveals that the regression model's errors are of a
 Both models tend to err more for extreme target sums.
 To explain this, note that since there are fewer pairs $\langle a,b \rangle$ whose sums are near 0 or $2N$, there are fewer datapoints to train the models on these values.
 
-Another point to take note of is that the scatter-plot of categorization exhibits linear trends.
-These are due to the model predicting the same value for a number of distinct contiguous targets.
-For instance, all target sums below 17 will correspond to a prediction of 17, whereas all target sums above 90 will correspond to a prediction of 90.
+Another point to take note of is that the scatter-plot of the categorization model exhibits linear trends.
+These are due to the model predicting the same value for a number of consecutive targets.
+For instance, all targets less than 17 will correspond to a prediction of 17, whereas all targets greater than 90 will correspond to a prediction of 90.
 This gives rise to errors of greater and greater magnitude for values near the extrema 0 and 2N, and thus translates as the two linear trends on either side of the scatter-plot.
 This behavior is not limited to extreme values; instead, it seems to apply to a number of intervals of target sums throughout the development set.
 As a concrete example, most pairs whose sum is between 65 and 61 are predicted to sum to 63.
@@ -416,7 +416,7 @@ Hence the task ought to be simpler for a sender trained by regression.
 This analysis, however, does not hold if we have a look at the actual messages produced by the sender in the categorization game.
 Figure~\ref{fig:msg} displays the messages produced by our two best models on the development set. 
 To produce this visualization, we first order all messages from highest to lowest predicted sum, then drop duplicates, and finally assign colors to symbols according to the order in which they are encountered.
-Each row of the colored matrices therefore correspond to a distinct message; darker cells indicate symbols used in messages describing items predicting to have a high sum whereas lighter cells correspond to symbols from messages of sums predicted to be lower.
+Each row of the colored matrices therefore correspond to a distinct message; darker cells indicate symbols used in messages describing items predicted to have a high sum, whereas lighter cells correspond to symbols from messages of sums predicted to be lower.
 
 To begin with our manual analysis, we can point at the fact that both models always produce messages of the maximum length  of 8, but employ a limited number of symbols: 5 for the categorization model and 6 for the regression model.
 Crucially, the categorization model produces much 60 distinct messages, whereas the regression message produces 276: given that there are 108 distinct targets in the development set, the sender in the categorization approach cannot be said to encode all the necessary information. 
@@ -428,10 +428,10 @@ The next cluster of pairs all predicted to sum to the same value (78) are descri
 
 In short, messages for a given cluster of prediction are very similar to one another; the most common messages for two subsequent clusters of prediction, such as 90 and 82, or 82 and 78, differ by one or two symbols.
 If we were to provide a naive characterization the general trend, messages generally transition from higher to lower prediction clusters by `pushing' new symbols at the end of a message.
-In all, throughout the development set, categorization messages clearly describe clusters of prediction; subsequent clusters tend to be described by highly similar messages with low edit distance.
-This also explains why we observed a high correlation of messages with the target sum: edit distance does reflect the ordering of prediction cluster, which in turn tend to consistently group together intervals of targets.
+Throughout the development set, messages from the categorization model clearly describe clusters of prediction; consecutive clusters tend to be described by highly similar messages with low edit distance.
+This also explains why we observed a high correlation of messages with the target sum: edit distance does reflect the ordering of prediction clusters, which in turn tend to consistently group together consecutive targets.
 
-The messages produced by the regression game, shown in Sub-figure~\ref{fig:msg:reg}, appear to be more complex.
+In contrast, the messages produced by the regression game, shown in Sub-figure~\ref{fig:msg:reg}, appear to be more complex.
 The model is more accurate, hence predictions clusters tend to be much smaller and often correspond to examples that do sum to the same value.
 Moreover we observe many synonyms.
 For instance, all three instances of a prediction of 98 are described with different messages, all separated by an edit distance of 1 or 2: ``{\tt \textcolor{Blues-K}{6~6~6}~\textcolor{Blues-I}{5}~\textcolor{Blues-G}{1~1}~\textcolor{Blues-F}{4}~\textcolor{Blues-G}{1}}'', ``{\tt \textcolor{Blues-K}{6~6~6}~\textcolor{Blues-I}{5}~\textcolor{Blues-G}{1~1~1}~\textcolor{Blues-F}{4}}'' and ``{\tt \textcolor{Blues-K}{6~6~6}~\textcolor{Blues-G}{1}~\textcolor{Blues-I}{5}~\textcolor{Blues-G}{1~1}~\textcolor{Blues-F}{4}}''.
@@ -531,11 +531,9 @@ Figure~\ref{fig:model} provides a synthetic visualization of what would entail t
 Subfigure~\ref{fig:model:six} shows a regular base-six encoding of integers from 0 to 127 and Subfigure~\ref{fig:model:stack} a stacking operation in a {\sc filo} datastructure.
 In some respect, the regression model's messages exhibits features reminiscent of both of these regular patterns.
 Crucially, these messages depart from the regular encoding of Subfigure~\ref{fig:model:six} in two ways.
-First, they are much less regular; second, symbols appearing in messages predicting low values tend to not appear in messages predicting high values and vice-versa.\footnote{
-    An interesting direction suggested by this analysis would be to look at whether there is a gradient that would range over the stacking pattern of a {\sc filo} datastructure, the behavior of the categorization model, that of the regression model, and the pattern of digits in numbers. 
-}
+First, they are much less regular; second, symbols appearing in messages predicting low values tend to not appear in messages predicting high values and vice-versa.
 
-In short, we find that the higher accuracy of the regression model is reflected in the greater complexity of its communication protocol.
+To sum up, we find that the higher accuracy of the regression model is reflected in the greater complexity of its communication protocol.
 Despite this distinction, there are obvious parallels between the two models' protocols.
 Both encode the sum rather than the paired input integers; both minimize the distance between messages for items predicted to be almost equal; both use a handful of symbols.
 
@@ -544,6 +542,7 @@ We have implemented and compared two approaches for the sum game: one based on a
 We designed our experiment to make the models as comparable as possible by using the same hyperparameter space and selection process for both approaches.
 The regression approach was found to be much more accurate.
 Notwithstanding, we observe similarities in the languages that emerge from the two models.
+An interesting direction for future research suggested by analyzing these emergent languages would be to look at whether there is a gradient that would range over the stacking pattern of a {\sc filo} datastructure, the behavior of the categorization model, that of the regression model, and the pattern of digits in numbers. 
 
 While we have implemented a number of mechanisms ranging from message length curriculum to structured input representations, there are other techniques we could apply to improve our results.
 For instance, from a purely technical point of view, we could initialize the {\sc rnn} and embeddings of both agents with the same weights: this would make the hidden states of both agents highly similar in early stages of the training.
